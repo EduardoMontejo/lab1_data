@@ -68,25 +68,54 @@ with right:
                 st.warning("La lista está vacía. Agrega al menos un objeto.")
             else:
                 # Normalización principal
-                df = pd.json_normalize(data, sep=".")
+                df_raw = pd.json_normalize(data, sep=".")
 
-                # Opcional: convertir listas/dicts a texto para mostrar mejor en tabla
+                # --- Análisis de esquema / nulos (ANTES de convertir listas/dicts a string) ---
+                detected_columns = df_raw.columns.tolist()
+                total_nulls = int(df_raw.isna().sum().sum())
+
+                # Para mostrar mejor en la tabla: convertir listas/dicts a texto
                 def to_displayable(x):
                     if isinstance(x, (list, dict)):
                         return json.dumps(x, ensure_ascii=False)
                     return x
 
-                df = df.applymap(to_displayable)
+                df = df_raw.applymap(to_displayable)
 
+                # Tabla
                 st.dataframe(df, use_container_width=True)
                 st.caption(f"Filas: {df.shape[0]} | Columnas: {df.shape[1]}")
 
-                # Opcional: descarga a CSV
+                # Descarga CSV (opcional)
                 csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button("Descargar CSV", csv, file_name="datamorph.json_normalized.csv", mime="text/csv")
+                st.download_button(
+                    "Descargar CSV",
+                    csv,
+                    file_name="datamorph.json_normalized.csv",
+                    mime="text/csv"
+                )
+
+                # --- Nueva sección: Análisis automático del esquema ---
+                st.divider()
+                st.subheader("3) Análisis automático del esquema")
+
+                st.markdown("**Columnas detectadas:**")
+                st.write(detected_columns)
+
+                st.markdown(f"**Valores nulos (NaN) totales:** `{total_nulls}`")
+
+                if total_nulls > 0:
+                    st.warning(
+                        "Se detectaron valores nulos (NaN). En un modelo relacional (SQL), "
+                        "muchas columnas con NULL pueden ser **ineficientes** (más joins/NULL checks, "
+                        "esquemas rígidos y filas con muchos huecos). En cambio, en NoSQL es común "
+                        "tener datos **dispersos (Sparse Data)**, donde algunos documentos no incluyen "
+                        "ciertos campos, y eso es totalmente normal."
+                    )
+                else:
+                    st.success("No se detectaron valores nulos. El esquema está completo para este conjunto de registros.")
 
         except json.JSONDecodeError as e:
             st.error(f"JSON inválido: {e}")
         except Exception as e:
             st.error(f"Error procesando el JSON: {e}")
-
